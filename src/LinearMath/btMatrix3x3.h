@@ -217,59 +217,6 @@ public:
 		btScalar d = q.length2();
 		btFullAssert(d != btScalar(0.0));
 		btScalar s = btScalar(2.0) / d;
-
-#if defined BT_USE_SIMD_VECTOR3 && defined(BT_USE_SSE_IN_API) && defined(BT_USE_SSE)
-		__m128 vs, Q = q.get128();
-		__m128i Qi = btCastfTo128i(Q);
-		__m128 Y, Z;
-		__m128 V1, V2, V3;
-		__m128 V11, V21, V31;
-		__m128 NQ = _mm_xor_ps(Q, btvMzeroMask);
-		__m128i NQi = btCastfTo128i(NQ);
-
-		V1 = btCastiTo128f(_mm_shuffle_epi32(Qi, BT_SHUFFLE(1, 0, 2, 3)));  // Y X Z W
-		V2 = _mm_shuffle_ps(NQ, Q, BT_SHUFFLE(0, 0, 1, 3));                 // -X -X  Y  W
-		V3 = btCastiTo128f(_mm_shuffle_epi32(Qi, BT_SHUFFLE(2, 1, 0, 3)));  // Z Y X W
-		V1 = _mm_xor_ps(V1, vMPPP);                                         //	change the sign of the first element
-
-		V11 = btCastiTo128f(_mm_shuffle_epi32(Qi, BT_SHUFFLE(1, 1, 0, 3)));  // Y Y X W
-		V21 = _mm_unpackhi_ps(Q, Q);                                         //  Z  Z  W  W
-		V31 = _mm_shuffle_ps(Q, NQ, BT_SHUFFLE(0, 2, 0, 3));                 //  X  Z -X -W
-
-		V2 = V2 * V1;   //
-		V1 = V1 * V11;  //
-		V3 = V3 * V31;  //
-
-		V11 = _mm_shuffle_ps(NQ, Q, BT_SHUFFLE(2, 3, 1, 3));                //	-Z -W  Y  W
-		V11 = V11 * V21;                                                    //
-		V21 = _mm_xor_ps(V21, vMPPP);                                       //	change the sign of the first element
-		V31 = _mm_shuffle_ps(Q, NQ, BT_SHUFFLE(3, 3, 1, 3));                //	 W  W -Y -W
-		V31 = _mm_xor_ps(V31, vMPPP);                                       //	change the sign of the first element
-		Y = btCastiTo128f(_mm_shuffle_epi32(NQi, BT_SHUFFLE(3, 2, 0, 3)));  // -W -Z -X -W
-		Z = btCastiTo128f(_mm_shuffle_epi32(Qi, BT_SHUFFLE(1, 0, 1, 3)));   //  Y  X  Y  W
-
-		vs = _mm_load_ss(&s);
-		V21 = V21 * Y;
-		V31 = V31 * Z;
-
-		V1 = V1 + V11;
-		V2 = V2 + V21;
-		V3 = V3 + V31;
-
-		vs = bt_splat3_ps(vs, 0);
-		//	s ready
-		V1 = V1 * vs;
-		V2 = V2 * vs;
-		V3 = V3 * vs;
-
-		V1 = V1 + v1000;
-		V2 = V2 + v0100;
-		V3 = V3 + v0010;
-
-		m_el[0] = V1;
-		m_el[1] = V2;
-		m_el[2] = V3;
-#else
 		btScalar xs = q.x() * s, ys = q.y() * s, zs = q.z() * s;
 		btScalar wx = q.w() * xs, wy = q.w() * ys, wz = q.w() * zs;
 		btScalar xx = q.x() * xs, xy = q.x() * ys, xz = q.x() * zs;
@@ -277,8 +224,7 @@ public:
 		setValue(
 			btScalar(1.0) - (yy + zz), xy - wz, xz + wy,
 			xy + wz, btScalar(1.0) - (xx + zz), yz - wx,
-			xz - wy, yz + wx, btScalar(1.0) - (xx + yy));
-#endif
+			xz - wy, yz + wx, btScalar(1.0) - (xx + yy)); 
 	}
 
 	/** @brief Set the matrix from euler angles using YPR around YXZ respectively
@@ -322,29 +268,17 @@ public:
 	/**@brief Set the matrix to the identity */
 	void setIdentity()
 	{
-#if (defined(BT_USE_SSE_IN_API) && defined(BT_USE_SSE)) || defined(BT_USE_NEON)
-		m_el[0] = v1000;
-		m_el[1] = v0100;
-		m_el[2] = v0010;
-#else
 		setValue(btScalar(1.0), btScalar(0.0), btScalar(0.0),
 				 btScalar(0.0), btScalar(1.0), btScalar(0.0),
-				 btScalar(0.0), btScalar(0.0), btScalar(1.0));
-#endif
+			btScalar(0.0), btScalar(0.0), btScalar(1.0));
 	}
     
     /**@brief Set the matrix to the identity */
     void setZero()
     {
-#if (defined(BT_USE_SSE_IN_API) && defined(BT_USE_SSE)) || defined(BT_USE_NEON)
-        m_el[0] = v0000;
-        m_el[1] = v0000;
-        m_el[2] = v0000;
-#else
         setValue(btScalar(0.0), btScalar(0.0), btScalar(0.0),
                  btScalar(0.0), btScalar(0.0), btScalar(0.0),
                  btScalar(0.0), btScalar(0.0), btScalar(0.0));
-#endif
     }
 
 	static const btMatrix3x3& getIdentity()
@@ -1224,41 +1158,7 @@ operator*(const btMatrix3x3& m, const btVector3& v)
 SIMD_FORCE_INLINE btVector3
 operator*(const btVector3& v, const btMatrix3x3& m)
 {
-#if defined BT_USE_SIMD_VECTOR3 && (defined(BT_USE_SSE_IN_API) && defined(BT_USE_SSE))
-
-	const __m128 vv = v.mVec128;
-
-	__m128 c0 = bt_splat_ps(vv, 0);
-	__m128 c1 = bt_splat_ps(vv, 1);
-	__m128 c2 = bt_splat_ps(vv, 2);
-
-	c0 = _mm_mul_ps(c0, _mm_and_ps(m[0].mVec128, btvFFF0fMask));
-	c1 = _mm_mul_ps(c1, _mm_and_ps(m[1].mVec128, btvFFF0fMask));
-	c0 = _mm_add_ps(c0, c1);
-	c2 = _mm_mul_ps(c2, _mm_and_ps(m[2].mVec128, btvFFF0fMask));
-
-	return btVector3(_mm_add_ps(c0, c2));
-#elif defined(BT_USE_NEON)
-	const float32x4_t vv = v.mVec128;
-	const float32x2_t vlo = vget_low_f32(vv);
-	const float32x2_t vhi = vget_high_f32(vv);
-
-	float32x4_t c0, c1, c2;
-
-	c0 = (float32x4_t)vandq_s32((int32x4_t)m[0].mVec128, btvFFF0Mask);
-	c1 = (float32x4_t)vandq_s32((int32x4_t)m[1].mVec128, btvFFF0Mask);
-	c2 = (float32x4_t)vandq_s32((int32x4_t)m[2].mVec128, btvFFF0Mask);
-
-	c0 = vmulq_lane_f32(c0, vlo, 0);
-	c1 = vmulq_lane_f32(c1, vlo, 1);
-	c2 = vmulq_lane_f32(c2, vhi, 0);
-	c0 = vaddq_f32(c0, c1);
-	c0 = vaddq_f32(c0, c2);
-
-	return btVector3(c0);
-#else
 	return btVector3(m.tdotx(v), m.tdoty(v), m.tdotz(v));
-#endif
 }
 
 SIMD_FORCE_INLINE btMatrix3x3

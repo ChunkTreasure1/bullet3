@@ -34,3 +34,25 @@ project "Bullet"
 		"src/btBulletDynamicsCommon.h",
 		"src/btLinearMathAll.cpp"
 	}
+	
+	includedirs
+	{
+		"src"
+	}
+	
+	filter "system:windows"
+		systemversion "latest"
+
+		filter "configurations:Debug"
+			runtime "Debug"
+			symbols "on"
+
+		filter "configurations:Release"
+			defines "LP_RELEASE"
+			runtime "Release"
+			optimize "on"
+
+		filter "configurations:Dist"
+			defines "LP_DIST"
+			runtime "Release"
+			optimize "on"
