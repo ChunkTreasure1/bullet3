@@ -217,6 +217,7 @@ public:
 		btScalar d = q.length2();
 		btFullAssert(d != btScalar(0.0));
 		btScalar s = btScalar(2.0) / d;
+
 		btScalar xs = q.x() * s, ys = q.y() * s, zs = q.z() * s;
 		btScalar wx = q.w() * xs, wy = q.w() * ys, wz = q.w() * zs;
 		btScalar xx = q.x() * xs, xy = q.x() * ys, xz = q.x() * zs;
@@ -224,7 +225,7 @@ public:
 		setValue(
 			btScalar(1.0) - (yy + zz), xy - wz, xz + wy,
 			xy + wz, btScalar(1.0) - (xx + zz), yz - wx,
-			xz - wy, yz + wx, btScalar(1.0) - (xx + yy)); 
+			xz - wy, yz + wx, btScalar(1.0) - (xx + yy));
 	}
 
 	/** @brief Set the matrix from euler angles using YPR around YXZ respectively
@@ -268,9 +269,10 @@ public:
 	/**@brief Set the matrix to the identity */
 	void setIdentity()
 	{
+
 		setValue(btScalar(1.0), btScalar(0.0), btScalar(0.0),
 				 btScalar(0.0), btScalar(1.0), btScalar(0.0),
-			btScalar(0.0), btScalar(0.0), btScalar(1.0));
+				 btScalar(0.0), btScalar(0.0), btScalar(1.0));
 	}
     
     /**@brief Set the matrix to the identity */
@@ -1164,86 +1166,10 @@ operator*(const btVector3& v, const btMatrix3x3& m)
 SIMD_FORCE_INLINE btMatrix3x3
 operator*(const btMatrix3x3& m1, const btMatrix3x3& m2)
 {
-#if defined BT_USE_SIMD_VECTOR3 && (defined(BT_USE_SSE_IN_API) && defined(BT_USE_SSE))
-
-	__m128 m10 = m1[0].mVec128;
-	__m128 m11 = m1[1].mVec128;
-	__m128 m12 = m1[2].mVec128;
-
-	__m128 m2v = _mm_and_ps(m2[0].mVec128, btvFFF0fMask);
-
-	__m128 c0 = bt_splat_ps(m10, 0);
-	__m128 c1 = bt_splat_ps(m11, 0);
-	__m128 c2 = bt_splat_ps(m12, 0);
-
-	c0 = _mm_mul_ps(c0, m2v);
-	c1 = _mm_mul_ps(c1, m2v);
-	c2 = _mm_mul_ps(c2, m2v);
-
-	m2v = _mm_and_ps(m2[1].mVec128, btvFFF0fMask);
-
-	__m128 c0_1 = bt_splat_ps(m10, 1);
-	__m128 c1_1 = bt_splat_ps(m11, 1);
-	__m128 c2_1 = bt_splat_ps(m12, 1);
-
-	c0_1 = _mm_mul_ps(c0_1, m2v);
-	c1_1 = _mm_mul_ps(c1_1, m2v);
-	c2_1 = _mm_mul_ps(c2_1, m2v);
-
-	m2v = _mm_and_ps(m2[2].mVec128, btvFFF0fMask);
-
-	c0 = _mm_add_ps(c0, c0_1);
-	c1 = _mm_add_ps(c1, c1_1);
-	c2 = _mm_add_ps(c2, c2_1);
-
-	m10 = bt_splat_ps(m10, 2);
-	m11 = bt_splat_ps(m11, 2);
-	m12 = bt_splat_ps(m12, 2);
-
-	m10 = _mm_mul_ps(m10, m2v);
-	m11 = _mm_mul_ps(m11, m2v);
-	m12 = _mm_mul_ps(m12, m2v);
-
-	c0 = _mm_add_ps(c0, m10);
-	c1 = _mm_add_ps(c1, m11);
-	c2 = _mm_add_ps(c2, m12);
-
-	return btMatrix3x3(c0, c1, c2);
-
-#elif defined(BT_USE_NEON)
-
-	float32x4_t rv0, rv1, rv2;
-	float32x4_t v0, v1, v2;
-	float32x4_t mv0, mv1, mv2;
-
-	v0 = m1[0].mVec128;
-	v1 = m1[1].mVec128;
-	v2 = m1[2].mVec128;
-
-	mv0 = (float32x4_t)vandq_s32((int32x4_t)m2[0].mVec128, btvFFF0Mask);
-	mv1 = (float32x4_t)vandq_s32((int32x4_t)m2[1].mVec128, btvFFF0Mask);
-	mv2 = (float32x4_t)vandq_s32((int32x4_t)m2[2].mVec128, btvFFF0Mask);
-
-	rv0 = vmulq_lane_f32(mv0, vget_low_f32(v0), 0);
-	rv1 = vmulq_lane_f32(mv0, vget_low_f32(v1), 0);
-	rv2 = vmulq_lane_f32(mv0, vget_low_f32(v2), 0);
-
-	rv0 = vmlaq_lane_f32(rv0, mv1, vget_low_f32(v0), 1);
-	rv1 = vmlaq_lane_f32(rv1, mv1, vget_low_f32(v1), 1);
-	rv2 = vmlaq_lane_f32(rv2, mv1, vget_low_f32(v2), 1);
-
-	rv0 = vmlaq_lane_f32(rv0, mv2, vget_high_f32(v0), 0);
-	rv1 = vmlaq_lane_f32(rv1, mv2, vget_high_f32(v1), 0);
-	rv2 = vmlaq_lane_f32(rv2, mv2, vget_high_f32(v2), 0);
-
-	return btMatrix3x3(rv0, rv1, rv2);
-
-#else
 	return btMatrix3x3(
 		m2.tdotx(m1[0]), m2.tdoty(m1[0]), m2.tdotz(m1[0]),
 		m2.tdotx(m1[1]), m2.tdoty(m1[1]), m2.tdotz(m1[1]),
 		m2.tdotx(m1[2]), m2.tdoty(m1[2]), m2.tdotz(m1[2]));
-#endif
 }
 
 /*
